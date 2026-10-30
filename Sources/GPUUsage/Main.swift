@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controller: StatusController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = Self.editMenu()
         let state = AppState()
         controller = StatusController(state: state)
         let args = CommandLine.arguments
@@ -20,6 +21,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.terminate(nil)
             }
         }
+    }
+
+    /// A menu bar app has no visible menu, but ⌘C / ⌘V / ⌘X / ⌘A / ⌘Z in text fields are
+    /// looked up in the main menu; without one, copy and paste silently do nothing.
+    private static func editMenu() -> NSMenu {
+        let main = NSMenu()
+        let edit = NSMenu(title: "Edit")
+        let items: [(String, Selector, String, NSEvent.ModifierFlags)] = [
+            ("Undo", Selector(("undo:")), "z", .command),
+            ("Redo", Selector(("redo:")), "z", [.command, .shift]),
+            ("Cut", #selector(NSText.cut(_:)), "x", .command),
+            ("Copy", #selector(NSText.copy(_:)), "c", .command),
+            ("Paste", #selector(NSText.paste(_:)), "v", .command),
+            ("Select All", #selector(NSText.selectAll(_:)), "a", .command),
+        ]
+        for (title, action, key, mods) in items {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            item.keyEquivalentModifierMask = mods
+            edit.addItem(item)
+        }
+        let editItem = NSMenuItem()
+        editItem.submenu = edit
+        main.addItem(NSMenuItem())   // app menu slot
+        main.addItem(editItem)
+        return main
     }
 
     private static func snapshot(state: AppState, to path: String) {

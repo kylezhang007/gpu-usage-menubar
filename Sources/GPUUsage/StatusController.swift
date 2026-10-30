@@ -108,6 +108,20 @@ final class StatusController: NSObject {
         }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { self?.close(); return nil }   // Esc
+            // The panel doesn't activate the app, so the Edit menu may not see ⌘C/⌘V; send them directly.
+            let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if mods == .command || mods == [.command, .shift], let key = event.charactersIgnoringModifiers?.lowercased() {
+                let action: Selector? = switch (key, mods.contains(.shift)) {
+                case ("x", false): #selector(NSText.cut(_:))
+                case ("c", false): #selector(NSText.copy(_:))
+                case ("v", false): #selector(NSText.paste(_:))
+                case ("a", false): #selector(NSText.selectAll(_:))
+                case ("z", false): Selector(("undo:"))
+                case ("z", true): Selector(("redo:"))
+                default: nil
+                }
+                if let action, NSApp.sendAction(action, to: nil, from: self) { return nil }
+            }
             return event
         }
     }
