@@ -22,6 +22,13 @@ enum AutoDLProvider {
             if let v = doubleValue(data["voucher_balance"]), v > 0 {
                 account.voucher = Money(amount: v / 1000, currency: "CNY")
             }
+            if let spent = doubleValue(data["accumulate"]).map({ $0 / 1000 }) {
+                account.totalSpend = Money(amount: spent, currency: "CNY")
+                account.todaySpend = Money(amount: SpendTracker.today(.autodl, total: spent), currency: "CNY")
+                if let rate = SpendTracker.perHour(.autodl, total: spent) {
+                    account.spendPerHour = Money(amount: rate, currency: "CNY")
+                }
+            }
         } catch {
             account.error = HTTP.describe(error)
         }
@@ -118,23 +125,40 @@ enum VastProvider {
     }
 }
 
-/// AutoDL doesn't report a spend rate, so it's estimated from how fast the balance drops.
-/// Samples persist across launches; a top-up (balance going up) starts a fresh history.
-enum BurnRate {
-    private static let key = "balanceHistory"
+/// AutoDL reports lifetime spend ("accumulate") but no daily figure or rate, so both are
+/// worked out from how that total grows. State persists across launches.
+enum SpendTracker {
+    private static let dayKey = "spendDay"
+    private static let historyKey = "spendHistory"
 
-    static func record(_ provider: Provider, balance: Double) -> Double? {
-        var all = UserDefaults.standard.dictionary(forKey: key) as? [String: [[Double]]] ?? [:]
-        var samples = all[provider.rawValue] ?? []
+    /// Spend since local midnight. The baseline is the last total seen before midnight,
+    /// or the first one seen today if the app wasn't running then.
+    static func today(_ provider: Provider, total: Double) -> Double {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        let day = f.string(from: Date())
+        var all = UserDefaults.standard.dictionary(forKey: dayKey) as? [String: [String: Any]] ?? [:]
+        var entry = all[provider.rawValue] ?? [:]
+        if entry["day"] as? String != day {
+            entry["base"] = entry["last"] as? Double ?? total
+            entry["day"] = day
+        }
+        entry["last"] = total
+        all[provider.rawValue] = entry
+        UserDefaults.standard.set(all, forKey: dayKey)
+        return max(0, total - (entry["base"] as? Double ?? total))
+    }
+
+    /// Average spend per hour over the last 3 hours, once there's 20 minutes of data.
+    /// Top-ups don't affect it, since lifetime spend only ever goes up.
+    static func perHour(_ provider: Provider, total: Double) -> Double? {
+        var all = UserDefaults.standard.dictionary(forKey: historyKey) as? [String: [[Double]]] ?? [:]
         let now = Date().timeIntervalSince1970
-        if let last = samples.last, balance > last[1] + 0.005 { samples = [] }
-        samples.append([now, balance])
-        samples = samples.filter { now - $0[0] < 3 * 3600 }   // last 3 hours
+        var samples = (all[provider.rawValue] ?? []).filter { now - $0[0] < 3 * 3600 }
+        samples.append([now, total])
         all[provider.rawValue] = samples
-        UserDefaults.standard.set(all, forKey: key)
-
+        UserDefaults.standard.set(all, forKey: historyKey)
         guard let first = samples.first, now - first[0] >= 20 * 60 else { return nil }
-        let perHour = (first[1] - balance) / ((now - first[0]) / 3600)
-        return perHour > 0.001 ? perHour : 0
+        return max(0, (total - first[1]) / ((now - first[0]) / 3600))
     }
 }

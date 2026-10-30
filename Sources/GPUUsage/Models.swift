@@ -104,6 +104,8 @@ struct Account: Identifiable, Equatable {
     var balance: Money?
     var voucher: Money?
     var spendPerHour: Money?
+    var todaySpend: Money?
+    var totalSpend: Money?
     var error: String?
 
     var hoursLeft: Double? {

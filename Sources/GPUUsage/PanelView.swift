@@ -342,45 +342,69 @@ struct AccountsTile: View {
             TileHeader(title: L("余额", "Balance"), detail: nil, theme: .accounts)
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(state.accounts.enumerated()), id: \.element.id) { i, a in
-                    if i > 0 { Spacer(minLength: 12) } else { Spacer(minLength: 4) }
-                    cell(a)
+                    if i > 0 {
+                        Spacer(minLength: 10)
+                        Divider().opacity(0.5)
+                        Spacer(minLength: 10)
+                    }
+                    AccountCell(account: a)
                 }
-                Spacer(minLength: 4)
+                Spacer(minLength: 0)
             }
-            .frame(maxHeight: .infinity)
+            .frame(maxHeight: .infinity, alignment: .top)
         }
     }
+}
 
-    private func cell(_ a: Account) -> some View {
-        let low = (a.hoursLeft ?? .infinity) < 3
-        let shade = low ? SectionTheme.warn : a.provider.theme.shade(0)
-        return VStack(alignment: .leading, spacing: 2) {
-            Text(a.balance?.formatted ?? "—")
-                .font(.system(size: 19, weight: .semibold).monospacedDigit())
-                .foregroundStyle(shade.gradient)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(a.provider.title).font(.system(size: 12)).foregroundStyle(.secondary)
-            if let error = a.error {
-                Text(error).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2)
-            } else if let rate = a.spendPerHour {
-                Text(rateText(rate, a.hoursLeft))
-                    .font(.system(size: 11))
-                    .foregroundStyle(low ? AnyShapeStyle(SectionTheme.warn.gradient) : AnyShapeStyle(.secondary))
+/// Big balance on top, then a two-column list whose figures share one right edge,
+/// so the decimal points line up down the column. Money is always blue; amber
+/// only when the balance is about to run out.
+private struct AccountCell: View {
+    var account: Account
+
+    private var low: Bool { (account.hoursLeft ?? .infinity) < 3 }
+    private var blue: Shade { SectionTheme.accounts.shade(0) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(account.balance?.formatted ?? "—")
+                    .font(.system(size: 20, weight: .semibold).monospacedDigit())
+                    .tracking(-0.5)
+                    .foregroundStyle(low ? SectionTheme.warn.gradient : blue.gradient)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(account.provider.title).font(.system(size: 12)).foregroundStyle(.secondary)
             }
-            if let v = a.voucher {
-                Text(L("代金券 \(v.formatted)", "Vouchers \(v.formatted)")).font(.system(size: 11)).foregroundStyle(.secondary)
+            if let error = account.error {
+                Text(error).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(spacing: 3) {
+                    if let v = account.todaySpend { line(L("今日", "Today"), v.formatted) }
+                    if let v = account.totalSpend { line(L("累计", "Total"), v.formatted) }
+                    if let r = account.spendPerHour {
+                        line(L("每小时", "Per hour"), r.amount > 0.001 ? r.formatted : L("未扣费", "—"))
+                    }
+                    if let h = account.hoursLeft { line(L("可用", "Lasts"), duration(h), warn: low) }
+                    if let v = account.voucher { line(L("代金券", "Vouchers"), v.formatted) }
+                }
             }
         }
     }
 
-    private func rateText(_ rate: Money, _ hours: Double?) -> String {
-        guard rate.amount > 0.001 else { return L("当前没有扣费", "Not spending now") }
-        let per = L("\(rate.formatted)/时", "\(rate.formatted)/h")
-        guard let hours else { return per }
-        let left = hours >= 48 ? L("约 \(Int(hours / 24)) 天", "~\(Int(hours / 24))d") : L("约 \(Int(hours)) 小时", "~\(Int(hours))h")
-        return "\(per) · \(left)"
+    private func line(_ label: String, _ value: String, warn: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label).font(.system(size: 11.5)).foregroundStyle(.secondary)
+            Spacer(minLength: 6)
+            Text(value)
+                .font(.system(size: 12, weight: .medium).monospacedDigit())
+                .foregroundStyle(warn ? SectionTheme.warn.gradient : SectionTheme.accounts.shade(1).gradient)
+                .lineLimit(1)
+        }
+    }
+
+    private func duration(_ hours: Double) -> String {
+        hours >= 48 ? L("约 \(Int(hours / 24)) 天", "~\(Int(hours / 24))d") : L("约 \(Int(hours)) 小时", "~\(Int(hours))h")
     }
 }
 

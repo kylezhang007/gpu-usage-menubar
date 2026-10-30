@@ -31,8 +31,9 @@ Companion to [AI Usage Menubar](https://github.com/kylezhang007/ai-usage-menubar
 
 **Per account**
 - **Balance**, plus AutoDL vouchers
+- **Today's spend and total spend** on AutoDL
 - **Spend per hour** and roughly **how long the balance lasts**. RunPod and Vast.ai report the rate;
-  for AutoDL it's estimated from how fast the balance drops.
+  for AutoDL it's worked out from how fast total spend grows.
 
 **Notifications**
 - A machine has been idle for 15, 30 or 60 minutes (you choose)
@@ -116,7 +117,8 @@ Unofficial and not affiliated with AutoDL, RunPod or Vast.ai.
 
 **每个账户**
 - 余额（AutoDL 还显示代金券）
-- 每小时花费，以及余额大约还能撑多久。RunPod 和 Vast.ai 由接口直接给出；AutoDL 根据余额下降的速度估算
+- AutoDL 的今日花费和累计消费
+- 每小时花费，以及余额大约还能撑多久。RunPod 和 Vast.ai 由接口直接给出；AutoDL 根据累计消费增长的速度估算
 
 **系统通知**：机器空闲超过设定时间，或者余额撑不过 3 小时。
 

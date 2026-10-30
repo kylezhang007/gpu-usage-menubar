@@ -80,7 +80,8 @@ final class AppState: ObservableObject {
         idleSince = ["demo-b": Date().addingTimeInterval(-42 * 60)]
         accounts = [
             Account(provider: .autodl, balance: Money(amount: 128.40, currency: "CNY"),
-                    voucher: Money(amount: 20, currency: "CNY"), spendPerHour: Money(amount: 3.98, currency: "CNY")),
+                    voucher: Money(amount: 20, currency: "CNY"), spendPerHour: Money(amount: 3.98, currency: "CNY"),
+                    todaySpend: Money(amount: 23.65, currency: "CNY"), totalSpend: Money(amount: 871.60, currency: "CNY")),
             Account(provider: .runpod, balance: Money(amount: 42.10, currency: "USD"), spendPerHour: Money(amount: 5.38, currency: "USD")),
             Account(provider: .vast, balance: Money(amount: 15.00, currency: "USD"), spendPerHour: Money(amount: 0, currency: "USD")),
         ]
@@ -110,12 +111,7 @@ final class AppState: ObservableObject {
 
         var all = await sshMachines
         var accounts: [Account] = []
-        if var a = await autodlAccount {
-            if let b = a.balance?.amount, let rate = BurnRate.record(.autodl, balance: b) {
-                a.spendPerHour = Money(amount: rate, currency: "CNY")
-            }
-            accounts.append(a)
-        }
+        if let a = await autodlAccount { accounts.append(a) }
         if let (a, m) = await runpodResult { accounts.append(a); all += m }
         if let (a, m) = await vastResult { accounts.append(a); all += m }
 
