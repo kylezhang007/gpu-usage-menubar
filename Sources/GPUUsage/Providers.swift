@@ -25,6 +25,8 @@ enum AutoDLProvider {
             if let spent = doubleValue(data["accumulate"]).map({ $0 / 1000 }) {
                 account.totalSpend = Money(amount: spent, currency: "CNY")
                 account.todaySpend = Money(amount: SpendTracker.today(.autodl, total: spent), currency: "CNY")
+                account.weekSpend = Money(amount: SpendTracker.thisWeek(.autodl), currency: "CNY")
+                account.daily = SpendTracker.daily(.autodl).map(\.spent)
                 if let rate = SpendTracker.perHour(.autodl, total: spent) {
                     account.spendPerHour = Money(amount: rate, currency: "CNY")
                 }
@@ -144,9 +146,36 @@ enum SpendTracker {
             entry["day"] = day
         }
         entry["last"] = total
+        let spent = max(0, total - (entry["base"] as? Double ?? total))
+        // Each day's final figure, kept for the chart and the week total (last 21 days).
+        var days = entry["days"] as? [String: Double] ?? [:]
+        days[day] = spent
+        let cutoff = f.string(from: Date().addingTimeInterval(-21 * 86400))
+        entry["days"] = days.filter { $0.key >= cutoff }
         all[provider.rawValue] = entry
         UserDefaults.standard.set(all, forKey: dayKey)
-        return max(0, total - (entry["base"] as? Double ?? total))
+        return spent
+    }
+
+    /// Spend for each of the last `count` days, oldest first; nil where the app wasn't running.
+    static func daily(_ provider: Provider, count: Int = 7) -> [(day: Date, spent: Double?)] {
+        let entry = (UserDefaults.standard.dictionary(forKey: dayKey) as? [String: [String: Any]])?[provider.rawValue]
+        let days = entry?["days"] as? [String: Double] ?? [:]
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        let today = Calendar.current.startOfDay(for: Date())
+        return (0..<count).reversed().map { back in
+            let d = Calendar.current.date(byAdding: .day, value: -back, to: today)!
+            return (d, days[f.string(from: d)])
+        }
+    }
+
+    /// Spend since Monday.
+    static func thisWeek(_ provider: Provider) -> Double {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2
+        let monday = cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        return daily(provider, count: 7).filter { $0.day >= monday }.compactMap(\.spent).reduce(0, +)
     }
 
     /// Average spend per hour over the last 3 hours, once there's 20 minutes of data.

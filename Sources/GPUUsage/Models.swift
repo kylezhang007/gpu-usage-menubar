@@ -105,7 +105,9 @@ struct Account: Identifiable, Equatable {
     var voucher: Money?
     var spendPerHour: Money?
     var todaySpend: Money?
+    var weekSpend: Money?
     var totalSpend: Money?
+    var daily: [Double?] = []        // last 7 days' spend, oldest first
     var error: String?
 
     var hoursLeft: Double? {

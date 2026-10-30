@@ -81,7 +81,8 @@ final class AppState: ObservableObject {
         accounts = [
             Account(provider: .autodl, balance: Money(amount: 128.40, currency: "CNY"),
                     voucher: Money(amount: 20, currency: "CNY"), spendPerHour: Money(amount: 3.98, currency: "CNY"),
-                    todaySpend: Money(amount: 23.65, currency: "CNY"), totalSpend: Money(amount: 871.60, currency: "CNY")),
+                    todaySpend: Money(amount: 23.65, currency: "CNY"), weekSpend: Money(amount: 156.20, currency: "CNY"),
+                    totalSpend: Money(amount: 871.60, currency: "CNY"), daily: [18.2, 31.5, 26.0, 9.4, 42.8, 24.7, 23.65]),
             Account(provider: .runpod, balance: Money(amount: 42.10, currency: "USD"), spendPerHour: Money(amount: 5.38, currency: "USD")),
             Account(provider: .vast, balance: Money(amount: 15.00, currency: "USD"), spendPerHour: Money(amount: 0, currency: "USD")),
         ]

@@ -23,7 +23,7 @@ struct PanelView: View {
                     }
                     .frame(width: 370)
                     if !state.accounts.isEmpty {
-                        AccountsTile().frame(width: 170).frame(maxHeight: .infinity)
+                        AccountsTile().frame(width: 220).frame(maxHeight: .infinity)
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true)
@@ -367,14 +367,27 @@ private struct AccountCell: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(account.balance?.formatted ?? "—")
-                    .font(.system(size: 20, weight: .semibold).monospacedDigit())
-                    .tracking(-0.5)
-                    .foregroundStyle(low ? SectionTheme.warn.gradient : blue.gradient)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text(account.provider.title).font(.system(size: 12)).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(account.balance?.formatted ?? "—")
+                        .font(.system(size: 20, weight: .semibold).monospacedDigit())
+                        .tracking(-0.5)
+                        .foregroundStyle(low ? SectionTheme.warn.gradient : blue.gradient)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .layoutPriority(1)
+                    Text(account.provider.title).font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 6)
+                if let week = account.weekSpend {
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(week.formatted)
+                            .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(SectionTheme.accounts.shade(1).gradient)
+                            .lineLimit(1)
+                        Text(L("本周", "This week")).font(.system(size: 12)).foregroundStyle(.secondary)
+                    }
+                }
             }
             if let error = account.error {
                 Text(error).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -387,6 +400,10 @@ private struct AccountCell: View {
                     }
                     if let h = account.hoursLeft { line(L("可用", "Lasts"), duration(h), warn: low) }
                     if let v = account.voucher { line(L("代金券", "Vouchers"), v.formatted) }
+                }
+                if account.daily.contains(where: { $0 != nil }) {
+                    DailyChart(values: account.daily, currency: account.balance?.currency ?? "CNY")
+                        .padding(.top, 4)
                 }
             }
         }
@@ -405,6 +422,82 @@ private struct AccountCell: View {
 
     private func duration(_ hours: Double) -> String {
         hours >= 48 ? L("约 \(Int(hours / 24)) 天", "~\(Int(hours / 24))d") : L("约 \(Int(hours)) 小时", "~\(Int(hours))h")
+    }
+}
+
+/// Spend per day for the last week: a soft blue line with a dot per day, today's dot
+/// filled and labeled, so a costly day stands out against the rest.
+private struct DailyChart: View {
+    var values: [Double?]
+    var currency: String
+
+    private var maxValue: Double { max(values.compactMap { $0 }.max() ?? 0, 0.01) }
+    private var blue: Shade { SectionTheme.accounts.shade(0) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(L("近 7 天", "Last 7 days")).font(.system(size: 11.5)).foregroundStyle(.secondary)
+                Spacer()
+                Text(L("最高 ", "Peak ") + Money(amount: maxValue, currency: currency).formatted)
+                    .font(.system(size: 11, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            GeometryReader { geo in
+                let pts = points(in: geo.size)
+                ZStack(alignment: .topLeading) {
+                    if pts.count > 1 {
+                        Path { p in
+                            p.move(to: CGPoint(x: pts[0].point.x, y: geo.size.height))
+                            pts.forEach { p.addLine(to: $0.point) }
+                            p.addLine(to: CGPoint(x: pts.last!.point.x, y: geo.size.height))
+                            p.closeSubpath()
+                        }
+                        .fill(LinearGradient(colors: [Color(hex: blue.to, opacity: 0.28), Color(hex: blue.to, opacity: 0)],
+                                             startPoint: .top, endPoint: .bottom))
+                        Path { p in
+                            p.move(to: pts[0].point)
+                            pts.dropFirst().forEach { p.addLine(to: $0.point) }
+                        }
+                        .stroke(blue.gradient, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+                    }
+                    ForEach(pts, id: \.index) { pt in
+                        let today = pt.index == values.count - 1
+                        Circle()
+                            .fill(today ? AnyShapeStyle(blue.gradient) : AnyShapeStyle(Color(hex: blue.from)))
+                            .frame(width: today ? 6 : 3.5, height: today ? 6 : 3.5)
+                            .position(pt.point)
+                    }
+                }
+            }
+            .frame(height: 38)
+            HStack(spacing: 0) {
+                ForEach(Array(values.indices), id: \.self) { i in
+                    Text(weekday(i))
+                        .font(.system(size: 9.5, weight: i == values.count - 1 ? .semibold : .regular))
+                        .foregroundStyle(i == values.count - 1 ? AnyShapeStyle(blue.gradient) : AnyShapeStyle(.tertiary))
+                        .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+
+    /// One slot per day, evenly spaced; days without data are skipped by the line.
+    private func points(in size: CGSize) -> [(index: Int, point: CGPoint)] {
+        let slot = size.width / CGFloat(values.count)
+        return values.enumerated().compactMap { i, v in
+            guard let v else { return nil }
+            let y = size.height - 3 - CGFloat(v / maxValue) * (size.height - 6)
+            return (i, CGPoint(x: slot * (CGFloat(i) + 0.5), y: y))
+        }
+    }
+
+    private func weekday(_ i: Int) -> String {
+        let day = Calendar.current.date(byAdding: .day, value: i - (values.count - 1), to: Date())!
+        let f = DateFormatter()
+        f.locale = Language.locale
+        f.dateFormat = Language.isChinese ? "EEEEE" : "EEEEE"
+        return f.string(from: day)
     }
 }
 
