@@ -23,7 +23,7 @@ struct PanelView: View {
                     }
                     .frame(width: 370)
                     if !state.accounts.isEmpty {
-                        AccountsTile().frame(width: 220).frame(maxHeight: .infinity)
+                        AccountsColumn().frame(width: 230)
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true)
@@ -206,25 +206,35 @@ struct MachineTile: View {
         machine.memTotalGB > 0 ? String(format: "%.1f/%.0fG", machine.memUsedGB, machine.memTotalGB) : ""
     }
 
+    /// Uptime, how long the GPU has sat idle, and cost: three evenly spaced figures.
     private var footerLine: some View {
-        HStack {
+        let idleNow = machine.util < AppState.idleThreshold
+        let idleFor = state.idleSince[machine.id].map { Date().timeIntervalSince($0) }
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 0) {
+                stat(L("已开机", "Up"), machine.uptime.map(formatDuration) ?? "—")
+                stat(L("GPU 空置", "GPU idle"), idleNow ? (idleFor.map(formatDuration) ?? "0m") : L("在用", "busy"),
+                     shade: idle != nil ? SectionTheme.warn : nil)
+                if let cost = machine.costPerHour {
+                    stat(L("每小时", "Per hour"), cost.formatted)
+                }
+            }
             if let idle {
-                Text(L("空闲 \(idle) 分钟，记得关机", "Idle \(idle) min, shut it down?"))
+                Text(L("空置 \(idle) 分钟了，记得关机省钱", "Idle \(idle) min. Shut it down to stop paying"))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(SectionTheme.warn.gradient)
-            } else {
-                Text(L("已开机", "Up")).font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-            Spacer()
-            if let cost = machine.costPerHour {
-                Text(L("\(cost.formatted)/时", "\(cost.formatted)/h"))
-                    .font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary)
-            }
-            if let up = machine.uptime {
-                Text(formatDuration(up))
-                    .font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func stat(_ label: String, _ value: String, shade: Shade? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                .foregroundStyle(shade.map { AnyShapeStyle($0.gradient) } ?? AnyShapeStyle(.primary))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -334,25 +344,16 @@ struct Sparkline: View {
     }
 }
 
-struct AccountsTile: View {
+/// One glass card per account, stacked like the machines on the left.
+struct AccountsColumn: View {
     @EnvironmentObject var state: AppState
 
     var body: some View {
-        Tile(theme: .accounts) {
-            TileHeader(title: L("余额", "Balance"), detail: nil, theme: .accounts)
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(state.accounts.enumerated()), id: \.element.id) { i, a in
-                    if i > 0 {
-                        Spacer(minLength: 10)
-                        Divider().opacity(0.5)
-                        Spacer(minLength: 10)
-                    }
-                    AccountCell(account: a)
-                }
-                Spacer(minLength: 0)
-            }
-            .frame(maxHeight: .infinity, alignment: .top)
+        VStack(spacing: 10) {
+            // Natural height for each card, so short accounts don't stretch into empty glass.
+            ForEach(state.accounts) { AccountCell(account: $0).fixedSize(horizontal: false, vertical: true) }
         }
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 
@@ -366,47 +367,64 @@ private struct AccountCell: View {
     private var blue: Shade { SectionTheme.accounts.shade(0) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 1) {
+        Tile(theme: .accounts) {
+            // Same header as a machine card: name in a pill, the key fact on the right.
+            TileHeader(title: account.provider.title, detail: nil, theme: .accounts)
+                .overlay(alignment: .trailing) {
+                    if let h = account.hoursLeft {
+                        Text(L("可用 ", "Lasts ") + duration(h))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(low ? SectionTheme.warn.gradient : SectionTheme.accounts.shade(0).gradient)
+                    }
+                }
+
+            HStack(alignment: .lastTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("余额", "Balance")).font(.system(size: 11)).foregroundStyle(.secondary)
                     Text(account.balance?.formatted ?? "—")
-                        .font(.system(size: 20, weight: .semibold).monospacedDigit())
-                        .tracking(-0.5)
+                        .font(.system(size: 24, weight: .semibold).monospacedDigit())
+                        .tracking(-0.6)
                         .foregroundStyle(low ? SectionTheme.warn.gradient : blue.gradient)
                         .lineLimit(1)
                         .fixedSize()
-                        .layoutPriority(1)
-                    Text(account.provider.title).font(.system(size: 12)).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 6)
                 if let week = account.weekSpend {
-                    VStack(alignment: .trailing, spacing: 1) {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(L("本周", "This week")).font(.system(size: 11)).foregroundStyle(.secondary)
                         Text(week.formatted)
-                            .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                            .font(.system(size: 15, weight: .semibold).monospacedDigit())
                             .foregroundStyle(SectionTheme.accounts.shade(1).gradient)
                             .lineLimit(1)
-                        Text(L("本周", "This week")).font(.system(size: 12)).foregroundStyle(.secondary)
                     }
                 }
             }
+
             if let error = account.error {
                 Text(error).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             } else {
-                VStack(spacing: 3) {
-                    if let v = account.todaySpend { line(L("今日", "Today"), v.formatted) }
-                    if let v = account.totalSpend { line(L("累计", "Total"), v.formatted) }
-                    if let r = account.spendPerHour {
-                        line(L("每小时", "Per hour"), r.amount > 0.001 ? r.formatted : L("未扣费", "—"))
+                let rows = figures
+                if !rows.isEmpty {
+                    VStack(spacing: 4) {
+                        ForEach(rows, id: \.0) { line($0.0, $0.1) }
                     }
-                    if let h = account.hoursLeft { line(L("可用", "Lasts"), duration(h), warn: low) }
-                    if let v = account.voucher { line(L("代金券", "Vouchers"), v.formatted) }
+                    .padding(.top, 2)
                 }
                 if account.daily.contains(where: { $0 != nil }) {
                     DailyChart(values: account.daily, currency: account.balance?.currency ?? "CNY")
-                        .padding(.top, 4)
+                        .padding(.top, 2)
                 }
             }
         }
+    }
+
+    private var figures: [(String, String)] {
+        var rows: [(String, String)] = []
+        if let v = account.todaySpend { rows.append((L("今日", "Today"), v.formatted)) }
+        if let v = account.totalSpend { rows.append((L("累计", "Total"), v.formatted)) }
+        if let r = account.spendPerHour { rows.append((L("每小时", "Per hour"), r.amount > 0.001 ? r.formatted : L("未扣费", "—"))) }
+        if let v = account.voucher { rows.append((L("代金券", "Vouchers"), v.formatted)) }
+        return rows
     }
 
     private func line(_ label: String, _ value: String, warn: Bool = false) -> some View {

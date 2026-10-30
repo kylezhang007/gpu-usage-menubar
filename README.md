@@ -24,12 +24,12 @@ Companion to [AI Usage Menubar](https://github.com/kylezhang007/ai-usage-menubar
 **Per machine**
 - **GPU use and VRAM** as two activity-style rings, averaged across all GPUs on the machine
 - **Temperature and power draw**
-- **Uptime**: how long the instance has been on
+- **Uptime** and **GPU idle time**: how long the instance has been on, and how long its GPU has sat unused
 - **Fullest disk**: system or data disk, turning amber at 90% before a full disk kills your run
 - **The last hour of GPU use** as a sparkline, so a stalled job is obvious
 - **Idle warning**: a machine whose GPU has been below 5% for a while turns amber and says "shut it down?"
 
-**Per account**
+**Per account** (one glass card each, under the balances)
 - **Balance**, plus AutoDL vouchers
 - **Today's, this week's and total spend** on AutoDL, with a 7-day chart of daily spend
 - **Spend per hour** and roughly **how long the balance lasts**. RunPod and Vast.ai report the rate;
@@ -110,7 +110,7 @@ Unofficial and not affiliated with AutoDL, RunPod or Vast.ai.
 **每台机器**
 - GPU 利用率和显存占用，用两层圆环显示；多卡机器显示平均值
 - 温度和功率
-- 开机时长
+- 开机时长，以及 GPU 已经空置了多久
 - 最满的那块硬盘（系统盘或数据盘），超过 90% 变成琥珀色提醒
 - 最近一小时的 GPU 利用率曲线，训练卡住了一眼就能看出来
 - 空闲提醒：GPU 一段时间几乎没在用，卡片会变成琥珀色，提示「记得关机」

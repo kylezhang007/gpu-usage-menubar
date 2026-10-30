@@ -10,7 +10,12 @@ final class AppState: ObservableObject {
     @Published private(set) var machines: [Machine] = []
     @Published private(set) var accounts: [Account] = []
     @Published private(set) var history: [String: [Double]] = [:]   // GPU util samples, oldest first
-    @Published private(set) var idleSince: [String: Date] = [:]
+    /// When each machine's GPU went idle; saved so a restart doesn't reset the count.
+    @Published private(set) var idleSince: [String: Date] = [:] {
+        didSet {
+            UserDefaults.standard.set(idleSince.mapValues(\.timeIntervalSince1970), forKey: "idleSince")
+        }
+    }
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
     @Published var showingSettings = false
@@ -44,6 +49,8 @@ final class AppState: ObservableObject {
         clearGlass = defaults.object(forKey: "clearGlass") as? Bool ?? true
         language = Language.current
         machines = servers.map { Machine(id: $0.id.uuidString, name: $0.name, provider: $0.provider) }
+        idleSince = (defaults.dictionary(forKey: "idleSince") as? [String: Double] ?? [:])
+            .mapValues { Date(timeIntervalSince1970: $0) }
         scheduleTimer()
         if Self.canNotify {
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
