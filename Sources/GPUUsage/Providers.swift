@@ -9,6 +9,8 @@ enum AutoDLProvider {
             req.httpMethod = "POST"
             req.setValue(token, forHTTPHeaderField: "Authorization")   // raw token, no "Bearer"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            // The docs list no parameters, but without a JSON body it answers RequestParameterIsWrong.
+            req.httpBody = Data("{}".utf8)
             guard let json = try await HTTP.json(req) as? [String: Any] else { throw FetchError.badResponse }
             guard json["code"] as? String == "Success", let data = json["data"] as? [String: Any] else {
                 throw FetchError.message((json["code"] as? String) == "AuthorizeFailed"
