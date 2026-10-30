@@ -103,8 +103,13 @@ final class StatusController: NSObject {
         panel.makeKeyAndOrderFront(nil)
         Task { await state.refresh() }
 
+        // Clicking elsewhere closes the panel, except in Settings: there you often switch to a
+        // browser to copy a token, and closing would throw away what you'd typed.
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            Task { @MainActor in self?.close() }
+            Task { @MainActor in
+                guard let self, !self.state.showingSettings else { return }
+                self.close()
+            }
         }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { self?.close(); return nil }   // Esc

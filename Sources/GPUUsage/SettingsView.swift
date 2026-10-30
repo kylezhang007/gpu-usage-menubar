@@ -106,6 +106,7 @@ struct SettingsView: View {
             }
         }
         .onAppear { servers = state.servers }
+        .onDisappear { persist() }
     }
 
     private func test(_ server: Server) {
@@ -125,11 +126,19 @@ struct SettingsView: View {
     }
 
     private func save() {
-        Keychain.set(.autodlToken, autodl)
-        Keychain.set(.runpodKey, runpod)
-        Keychain.set(.vastKey, vast)
-        state.servers = servers.filter { !$0.ssh.trimmingCharacters(in: .whitespaces).isEmpty }
+        persist()
         state.showingSettings = false
+    }
+
+    /// Also runs when Settings goes away some other way (Esc, reopening the panel),
+    /// so nothing typed is lost.
+    private func persist() {
+        for (key, value) in [(Keychain.Key.autodlToken, autodl), (.runpodKey, runpod), (.vastKey, vast)]
+        where value != (Keychain.get(key) ?? "") {
+            Keychain.set(key, value)
+        }
+        let kept = servers.filter { !$0.ssh.trimmingCharacters(in: .whitespaces).isEmpty }
+        if kept != state.servers { state.servers = kept } else { Task { await state.refresh() } }
     }
 }
 
